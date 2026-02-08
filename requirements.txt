@@ -1,0 +1,22 @@
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+xformers==0.0.29.post3
+torch==2.6.0
+torchvision==0.21.0
+
+numpy<=2.3
+ipykernel
+omegaconf
+scikit-learn
+scikit-image
+pillow
+tqdm
+matplotlib
+seaborn
+pandas
+transformers
+einops
+loguru
+opencv-python-headless
+numba
+scipy
