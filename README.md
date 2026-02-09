@@ -1,5 +1,5 @@
 # VirTues-M2
-This repository contains inference examples on how to run VirTues-M2 for spatial proteomics and histopathology images.
+This repository contains inference examples on how to run VirTues-M2.
 Full training code will be released soon.
 
 ## Installation
