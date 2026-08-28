@@ -1,8 +1,10 @@
 import os
+
 from huggingface_hub import PyTorchModelHubMixin, hf_hub_download
+from instanseg.utils.loss.instanseg_loss import InstanSeg
 
 from virtuesm2.segmentation.decoder import VM2_Segmentation
-from instanseg.utils.loss.instanseg_loss import InstanSeg
+
 
 class VM2_Segmentation_HF(VM2_Segmentation, PyTorchModelHubMixin):
     """

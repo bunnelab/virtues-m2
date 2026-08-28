@@ -1,17 +1,16 @@
-import contextlib
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange
-from omegaconf import OmegaConf
 
 from virtuesm2.models.virtuesm2 import VirTuesM2
-from virtuesm2.virtual_staining.positional_embeddings import PositionalEmbedding2D
+from virtuesm2.utils.utils import (load_marker_embedding_dict,
+                                   load_marker_embeddings)
 from virtuesm2.virtual_staining.decoder import VirtualStainingDecoder
-from virtuesm2.utils.utils import load_marker_embedding_dict, load_marker_embeddings
+from virtuesm2.virtual_staining.positional_embeddings import \
+    PositionalEmbedding2D
 
 
 class VM2_VirtualStaining(nn.Module):

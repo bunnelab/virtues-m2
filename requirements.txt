@@ -21,4 +21,5 @@ opencv-python-headless
 numba
 scipy
 hf_xet
+instanseg-torch
 git+https://github.com/bunnelab/spora-io.git

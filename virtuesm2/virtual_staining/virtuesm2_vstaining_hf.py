@@ -1,8 +1,10 @@
 import os
 
 from huggingface_hub import PyTorchModelHubMixin, hf_hub_download
-from virtuesm2.virtual_staining.virtuesm2_vstaining import VM2_VirtualStaining
+
 from virtuesm2.models.virtuesm2 import VirTuesM2
+from virtuesm2.virtual_staining.virtuesm2_vstaining import VM2_VirtualStaining
+
 
 class VM2_VirtualStaining_HF(PyTorchModelHubMixin, VM2_VirtualStaining):
     """VirTues-M2 virtual staining model.

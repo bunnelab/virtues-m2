@@ -6,9 +6,10 @@ index for each spatial location.  This matches the convention used in the
 virtual-staining decoder and the notebook inference code.
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
-from typing import Optional
 
 
 class PositionalEmbedding2D(nn.Module):
