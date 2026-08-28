@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "virtues-m2"
+version = "0.1.0"
+description = "Virtues-m2 environement"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [{name = "Unknown"}]
+dependencies = [
+  "xformers==0.0.29.post3",
+  "torch==2.6.0",
+  "torchvision==0.21.0",
+  "numpy<=2.3",
+  "ipykernel",
+  "omegaconf",
+  "scikit-learn",
+  "scikit-image",
+  "pillow",
+  "tqdm",
+  "matplotlib",
+  "seaborn",
+  "pandas",
+  "transformers",
+  "einops",
+  "loguru",
+  "opencv-python-headless",
+  "numba",
+  "scipy",
+  "instanseg-torch",
+  "spora_io@git+https://github.com/bunnelab/spora-io.git",
+  "hf_xet",
+]
+
+[tool.setuptools.packages.find]
+include = ["virtuesm2*"]

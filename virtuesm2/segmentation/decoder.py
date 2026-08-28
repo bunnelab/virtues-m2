@@ -1,12 +1,46 @@
 from collections import OrderedDict
-from typing import List, Literal, Tuple
 
-import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from instanseg.utils.loss.instanseg_loss import InstanSeg
+from instanseg.utils.tiling import _chops, _stitch_mean, _tiles_from_chops
+from tqdm import tqdm
 
-from .postprocessing import DetectionCellPostProcessor
-from .utils import Conv2DBlock, Deconv2DBlock
+from .utils import Conv2DBlock, Deconv2DBlock, segment_large_tissue
+
+
+def build_segmentation_model(vm2_model: nn.Module, num_celltypes: int, modality: str, ckpt_path: str = None, mlp_width: int = 64) -> nn.Module:
+    assert modality in {"multiplex", "he", "multimodal"}, f"Invalid modality: {modality}. Must be one of 'multiplex', 'he', or 'multimodal'."
+    instanseg = InstanSeg(
+        n_sigma=2,
+        window_size=128,
+    )
+    segmentation_model = VM2_Segmentation(
+        virtuesm2_model=vm2_model,
+        dim_out=instanseg.dim_out,
+        num_celltypes=num_celltypes,
+        extract_layers=[6, 12, 18, 24],
+        mode=modality,
+        model_dim=2048 if modality == "multimodal" else 1024,
+    ).cpu()
+    segmentation_model = instanseg.initialize_pixel_classifier(segmentation_model, MLP_width=mlp_width)
+    segmentation_model = segmentation_model.to("cuda")
+    
+    if ckpt_path is not None:
+        ckpt = torch.load(ckpt_path, map_location="cuda", weights_only=False)
+        if isinstance(ckpt, dict) and "model_state_dict" in ckpt:
+            state_dict = ckpt["model_state_dict"]
+        elif isinstance(ckpt, dict):
+            state_dict = ckpt
+        else:
+            raise TypeError(f"Unsupported checkpoint type: {type(ckpt)}")
+        state_dict = {k.removeprefix("module."): v for k, v in state_dict.items()}
+        segmentation_model.load_state_dict(state_dict, strict=True)
+    segmentation_model.eval()
+    
+    segmentation_model.instance_processor = instanseg
+    return segmentation_model
 
 
 class SegmentationDecoder(nn.Module):
@@ -15,32 +49,22 @@ class SegmentationDecoder(nn.Module):
     For VirTues-M2, the tokens are concatenated along the feature dimension to incorporate both modalities.
     Skip connections are shared between branches, but each network has a distinct encoder.
 
-    The model has multiple branches:
-        * nuclei_binary_map: Binary nuclei prediction
-        * hv_map: HV-prediction to separate isolated instances
-        * nuclei_type_map: Nuclei instance-prediction
-
     Args:
         num_nuclei_classes (int): Number of nuclei classes (including background)
         embed_dim (int): Embedding dimension of backbone ViT
-        extract_layers: (List[int]): List of Transformer Blocks whose outputs should be returned in addition to the tokens. First blocks starts with 1, and maximum is N=depth.
-            Is used for skip connections. At least 4 skip connections needs to be returned.
     """
 
     def __init__(
         self,
-        num_nuclei_classes: int,
         embed_dim: int,
-        extract_layers: List[int],
+        out_channels: int
     ):
         # For simplicity, we will assume that extract layers must have a length of 4
         super().__init__()
-        assert len(extract_layers) == 4, "Please provide 4 layers for skip connections"
 
         self.patch_size = 14
-        self.num_nuclei_classes = num_nuclei_classes
+        self.out_channels = out_channels
         self.embed_dim = embed_dim
-        self.extract_layers = extract_layers
 
         if self.embed_dim < 512:
             self.skip_dim_11 = 256
@@ -70,51 +94,27 @@ class SegmentationDecoder(nn.Module):
         )  # skip connection 2
         self.decoder3 = nn.Sequential(Deconv2DBlock(self.embed_dim, self.bottleneck_dim))  # skip connection 3
 
-        offset_branches = 0
-        self.branches_output = {
-            "nuclei_binary_map": 2 + offset_branches,
-            "hv_map": 2,
-            "nuclei_type_maps": self.num_nuclei_classes,
-        }
+        self.decoder = self.create_upsampling_branch(out_channels)
 
-        self.nuclei_binary_map_decoder = self.create_upsampling_branch(2 + offset_branches)  # todo: adapt for helper loss
-        self.hv_map_decoder = self.create_upsampling_branch(2)  # todo: adapt for helper loss
-        self.nuclei_type_maps_decoder = self.create_upsampling_branch(self.num_nuclei_classes)
-
-    def forward(self, x_patches, all_layers) -> dict:
+    def forward(self, x_patches, extracted_layers) -> dict:
         """Forward pass
-
-        Args:
-            x (torch.Tensor): Images in BCHW style
-            retrieve_tokens (bool, optional): If tokens of ViT should be returned as well. Defaults to False.
-
-        Returns:
-            dict: Output for all branches
-                * nuclei_binary_map: Raw binary cell segmentation predictions. Shape: (B, 2, H, W)
-                * hv_map: Binary HV Map predictions. Shape: (B, 2, H, W)
-                * nuclei_type_map: Raw binary nuclei type preditcions. Shape: (B, num_nuclei_classes, H, W)
         """
 
         z0 = x_patches
-        z1 = all_layers[self.extract_layers[0] - 1]
-        z2 = all_layers[self.extract_layers[1] - 1]
-        z3 = all_layers[self.extract_layers[2] - 1]
-        z4 = all_layers[self.extract_layers[3] - 1]
-        out_dict = {}
+        z1 = extracted_layers[0]
+        z2 = extracted_layers[1]
+        z3 = extracted_layers[2]
+        z4 = extracted_layers[3]
 
         # performing reshape for the convolutional layers and upsampling (restore spatial dimension)
-        # patch_dim = [int(d / self.patch_size) for d in [z0.shape[-2], z0.shape[-2]]]
-        patch_dim = [int(np.sqrt(z0.shape[-2])), int(np.sqrt(z0.shape[-2]))]
+        patch_dim = [int(d ** 0.5) for d in [z0.shape[-2], z0.shape[-2]]]
         z4 = z4.transpose(-1, -2).view(-1, self.embed_dim, *patch_dim)
         z3 = z3.transpose(-1, -2).view(-1, self.embed_dim, *patch_dim)
         z2 = z2.transpose(-1, -2).view(-1, self.embed_dim, *patch_dim)
         z1 = z1.transpose(-1, -2).view(-1, self.embed_dim, *patch_dim)
         z0 = z0.transpose(-1, -2).view(-1, self.embed_dim, *patch_dim)
 
-        out_dict["nuclei_binary_map"] = self._forward_upsample(z0, z1, z2, z3, z4, self.nuclei_binary_map_decoder)
-        out_dict["hv_map"] = self._forward_upsample(z0, z1, z2, z3, z4, self.hv_map_decoder)
-        out_dict["nuclei_type_map"] = self._forward_upsample(z0, z1, z2, z3, z4, self.nuclei_type_maps_decoder)
-        return out_dict
+        return self._forward_upsample(z0, z1, z2, z3, z4, self.decoder)
 
     def _forward_upsample(
         self,
@@ -230,69 +230,180 @@ class SegmentationDecoder(nn.Module):
         )
 
         return decoder
+    
+class VM2_Segmentation(nn.Module):
+    def __init__(self, virtuesm2_model, dim_out: int, num_celltypes=None, extract_layers=[4, 8, 12, 16], model_dim=1024, mode="multiplex"):
+        super().__init__()
+        assert len(extract_layers) == 4, "Provide 4 layers for skip connections"
 
-    def calculate_instance_map(self, predictions: OrderedDict, magnification: Literal[20, 40] = 20) -> Tuple[torch.Tensor, List[dict]]:
-        """Calculate Instance Map from network predictions (after Softmax output)
+        self.virtuesm2_model = virtuesm2_model
+        self.dim_out = dim_out
+        self.decoder = SegmentationDecoder(embed_dim=model_dim, out_channels=dim_out)
+        self.extract_layers = torch.tensor(extract_layers)
+        self.mode = mode
+
+        self.num_celltypes = num_celltypes
+        if num_celltypes is not None:
+            self.decoder_phenotypes = SegmentationDecoder(embed_dim=model_dim, out_channels=num_celltypes)
+
+    def _encode(self, mx_images, he_images, channels, mode="multiplex"):
+        mx_image = mx_images[0]
+        he_image = he_images[0]
+        num_patches = mx_image.shape[1] * mx_image.shape[2] // (14*14) if mx_image is not None else he_image.shape[1] * he_image.shape[2] // (14*14)
+        if mode == "multiplex":
+            he_images = [None] * len(mx_images)
+        elif mode == "he":
+            mx_images = [None] * len(he_images)
+    
+        with torch.no_grad():
+            with torch.amp.autocast("cuda", dtype=torch.float16):
+                mx_images = [mx_img.cuda(non_blocking=True) if mx_img is not None else None for mx_img in mx_images]
+                he_images = [he_img.cuda(non_blocking=True) if he_img is not None else None for he_img in he_images]
+                # Get the tokenized multiplex and H&E inputs
+                tokenized_img = self.virtuesm2_model.prepare_tokens_with_masks(mx_images, he_images, channels)
+                tokens_mx = tokenized_img[:, self.virtuesm2_model.num_register_tokens + 1: + self.virtuesm2_model.num_register_tokens + 1 + num_patches]
+                tokens_he = tokenized_img[:, self.virtuesm2_model.num_register_tokens + 1 + num_patches:]
+
+                # Apply VirTues-M2
+                mm_embeddings = self.virtuesm2_model.forward_features(mx_images, he_images, channels, return_all_layers=True)
+                x_all_layers = mm_embeddings["x_all_layers"]
+                
+                # Decoder images into segmentation maps
+                # patches_concat = torch.cat((tokens_mx, tokens_he), dim=-1)
+                if mode == "multiplex":
+                    latent_patches = tokens_mx
+                    for i in range(len(x_all_layers)):
+                        x_all_layers[i] = x_all_layers[i][:, 1 + self.virtuesm2_model.num_register_tokens : 1 + self.virtuesm2_model.num_register_tokens + num_patches]
+                elif mode == "he":
+                    latent_patches = tokens_he
+                    for i in range(len(x_all_layers)):
+                        x_all_layers[i] = x_all_layers[i][:, 1 + self.virtuesm2_model.num_register_tokens + num_patches:]
+                else:
+                    latent_patches = torch.cat((tokens_mx, tokens_he), dim=-1)
+                    for i in range(len(x_all_layers)):
+                        x_all_layers[i] = torch.cat((x_all_layers[i][:, 1 + self.virtuesm2_model.num_register_tokens : 1 + self.virtuesm2_model.num_register_tokens + num_patches],
+                                                    x_all_layers[i][:, 1 + self.virtuesm2_model.num_register_tokens + num_patches:]),
+                                                    dim=-1)
+                x_all_layers = torch.stack(x_all_layers)
+        return latent_patches, x_all_layers[self.extract_layers - 1]
+
+    def forward(self, mx_images, he_images, channels):
+        out_dict = {}
+        z0, extracted_layers = self._encode(mx_images, he_images, channels, self.mode)
+        out_dict["instance_branch"] = self.decoder(z0, extracted_layers)
+        if self.num_celltypes is not None:
+            phenotypes = self.decoder_phenotypes(z0, extracted_layers)
+            out_dict["phenotype_branch"] = phenotypes
+
+        return out_dict
+
+    @torch.no_grad()
+    def segment_tile(self, mx_image, he_image, channel_ids):
+        """
+        Computes cell instance segmentation and phenotype logits for a single tile.
 
         Args:
-            predictions (dict): Dictionary with the following required keys:
-                * nuclei_binary_map: Binary Nucleus Predictions. Shape: (B, 2, H, W)
-                * nuclei_type_map: Type prediction of nuclei. Shape: (B, self.num_nuclei_classes, H, W)
-                * hv_map: Horizontal-Vertical nuclei mapping. Shape: (B, 2, H, W)
-            magnification (Literal[20, 40], optional): Which magnification the data has. Defaults to 40.
+            mx_image (torch.Tensor | None): Multiplexed image tile of shape (C,H,W), or None if the
+                decoder's mode does not use the multiplex branch.
+            he_image (torch.Tensor | None): H&E image tile of shape (3,H,W), or None if the decoder's
+                mode does not use the H&E branch.
+            channel_ids (torch.Tensor | None): Channel ids corresponding to the channels in mx_image.
+                The tensor should be of shape (C,).
+        Returns:
+            pred_instance (torch.Tensor): The predicted instance segmentation mask. The tensor will be of
+                shape (H,W) with integer values representing different instances.
+            semantic_logits (torch.Tensor): The predicted phenotype segmentation logits. The tensor will
+                be of shape (num_celltypes,H,W).
+        """
+        assert self.num_celltypes is not None, "segment_tile requires a phenotype decoder (num_celltypes must be set)"
+        out = self.forward([mx_image], [he_image], [channel_ids])
+        inst_logits = out["instance_branch"][0]
+        pred_instance = self.instance_processor.postprocessing(inst_logits, window_size=64, cleanup_fragments=True)[0]
+        semantic_logits = out["phenotype_branch"][0]
+        return pred_instance, semantic_logits
+
+    @torch.no_grad()
+    def segment_tissue(
+        self,
+        mx_tissue,
+        he_tissue,
+        channel_ids,
+        tile_size: int,
+        overlap: int,
+        batch_size: int,
+        large_tissue_threshold: int = 1500,
+    ):
+        """
+        Computes cell instance segmentation and phenotype logits for a large tissue image by processing
+        it in tiles.
+
+        If the tissue's longer side exceeds `large_tissue_threshold` pixels, delegates to
+        `segment_large_tissue` instead, which segments and stitches instances tile by tile, at the cost
+        of needing to match instance identities across tile borders.
+
+        Args:
+            mx_tissue (torch.Tensor | None): A large multiplexed tissue image of shape (C,H,W), or None
+                if the decoder's mode does not use the multiplex branch.
+            he_tissue (torch.Tensor | None): A large H&E tissue image of shape (3,H,W), or None if the
+                decoder's mode does not use the H&E branch.
+            channel_ids (torch.Tensor | None): Channel ids corresponding to the channels in mx_tissue.
+                The tensor should be of shape (C,).
+            tile_size (int): The width/height of the tiles the image is split into.
+            overlap (int): The overlap (in pixels) between neighbouring tiles.
+            batch_size (int): The number of tiles processed per batch.
+            large_tissue_threshold (int, optional): If the tissue's longer side exceeds this threshold,
+                delegates to `segment_large_tissue`. Defaults to 1500.
 
         Returns:
-            Tuple[torch.Tensor, List[dict]]:
-                * torch.Tensor: Instance map. Each Instance has own integer. Shape: (B, H, W)
-                * List of dictionaries. Each List entry is one image. Each dict contains another dict for each detected nucleus.
-                    For each nucleus, the following information are returned: "bbox", "centroid", "contour", "type_prob", "type"
+            pred_instance (torch.Tensor): The predicted instance segmentation mask for the entire tissue.
+                The tensor will be of shape (H,W) with integer values representing different instances.
+            semantic_logits (torch.Tensor): The predicted phenotype segmentation logits for the entire
+                tissue. The tensor will be of shape (num_celltypes,H,W).
         """
-        # reshape to B, H, W, C
-        predictions_ = predictions.copy()
-        predictions_["nuclei_type_map"] = predictions_["nuclei_type_map"].permute(0, 2, 3, 1)
-        predictions_["nuclei_binary_map"] = predictions_["nuclei_binary_map"].permute(0, 2, 3, 1)
-        predictions_["hv_map"] = predictions_["hv_map"].permute(0, 2, 3, 1)
+        assert self.num_celltypes is not None, "segment_tissue requires a phenotype decoder (num_celltypes must be set)"
+        reference_tissue = mx_tissue if mx_tissue is not None else he_tissue
+        h, w = int(reference_tissue.shape[-2]), int(reference_tissue.shape[-1])
 
-        cell_post_processor = DetectionCellPostProcessor(nr_types=self.num_nuclei_classes, magnification=magnification, gt=False)
-        instance_preds = []
-        type_preds = []
-
-        for i in range(predictions_["nuclei_binary_map"].shape[0]):
-            pred_map = np.concatenate(
-                [
-                    torch.argmax(predictions_["nuclei_type_map"], dim=-1)[i].detach().cpu()[..., None],
-                    torch.argmax(predictions_["nuclei_binary_map"], dim=-1)[i].detach().cpu()[..., None],
-                    predictions_["hv_map"][i].detach().cpu(),
-                ],
-                axis=-1,
+        if max(h, w) > large_tissue_threshold:
+            pred_instance, semantic_logits = segment_large_tissue(
+                mx_tissue,
+                he_tissue,
+                self,
+                channel_ids,
+                tile=tile_size,
+                ovlp=overlap,
+                bs=batch_size,
             )
-            instance_pred = cell_post_processor.post_process_cell_segmentation(pred_map)
-            instance_preds.append(instance_pred[0])
-            type_preds.append(instance_pred[1])
+            return pred_instance.cpu(), semantic_logits.cpu()
 
-        return torch.Tensor(np.stack(instance_preds)), type_preds
+        tile_hw = (min(tile_size, h), min(tile_size, w))
+        chop_idx = _chops(reference_tissue.shape, shape=tile_hw, overlap=2 * overlap)
+        mx_tiles = _tiles_from_chops(mx_tissue, shape=tile_hw, tuple_index=chop_idx) if mx_tissue is not None else None
+        he_tiles = _tiles_from_chops(he_tissue, shape=tile_hw, tuple_index=chop_idx) if he_tissue is not None else None
+        num_tiles = len(mx_tiles) if mx_tiles is not None else len(he_tiles)
 
-    def generate_instance_nuclei_map(self, instance_maps: torch.Tensor, type_preds: List[dict]) -> torch.Tensor:
-        """Convert instance map (binary) to nuclei type instance map
+        logits_tiles = []
 
-        Args:
-            instance_maps (torch.Tensor): Binary instance map, each instance has own integer. Shape: (B, H, W)
-            type_preds (List[dict]): List (len=B) of dictionary with instance type information (compare post_process_hovernet function for more details)
+        for i in tqdm(range(0, num_tiles, batch_size)):
+            batch_len = min(batch_size, num_tiles - i)
+            mx_batch = mx_tiles[i : i + batch_size] if mx_tiles is not None else [None] * batch_len
+            he_batch = he_tiles[i : i + batch_size] if he_tiles is not None else [None] * batch_len
+            channels_batch = [channel_ids] * batch_len
 
-        Returns:
-            torch.Tensor: Nuclei type instance map. Shape: (B, self.num_nuclei_classes, H, W)
-        """
-        batch_size, h, w = instance_maps.shape
-        instance_type_nuclei_maps = torch.zeros((batch_size, h, w, self.num_nuclei_classes))
-        for i in range(batch_size):
-            instance_type_nuclei_map = torch.zeros((h, w, self.num_nuclei_classes))
-            instance_map = instance_maps[i]
-            type_pred = type_preds[i]
-            for nuclei, spec in type_pred.items():
-                nuclei_type = spec["type"]
-                instance_type_nuclei_map[:, :, nuclei_type][instance_map == nuclei] = nuclei
+            out = self.forward(mx_batch, he_batch, channels_batch)
+            pred = torch.cat([out["instance_branch"], out["phenotype_branch"]], dim=1).detach()
+            if pred.shape[-2:] != tile_hw:
+                pred = F.interpolate(pred, size=tile_hw, mode="bilinear", align_corners=False)
+            logits_tiles.extend([p for p in pred])
 
-            instance_type_nuclei_maps[i, :, :, :] = instance_type_nuclei_map
+        stitched_logits = _stitch_mean(
+            logits_tiles,
+            shape=tile_hw,
+            chop_list=chop_idx,
+            final_shape=(logits_tiles[0].shape[0], h, w),
+        )
 
-        instance_type_nuclei_maps = instance_type_nuclei_maps.permute(0, 3, 1, 2)
-        return torch.Tensor(instance_type_nuclei_maps)
+        inst_logits = stitched_logits[: self.dim_out]
+        pred_instance = self.instance_processor.postprocessing(inst_logits, window_size=64, cleanup_fragments=True, max_seeds=30000)[0]
+        semantic_logits = stitched_logits[self.dim_out :, :, :]
+        return pred_instance.cpu(), semantic_logits.cpu()
