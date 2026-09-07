@@ -2,7 +2,7 @@
 
 *[[Preprint]]() | [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference)*
 
-<img src=".github/VirTues-M2_logo.png" alt="VirTues-M2 Logo" width="40%" align="right" />
+<img src=".github/VirTues-M2_logo.png" alt="VirTues-M2 Logo" width="50%" align="right" />
 
 *Authors:* Benedikt von Querfurth*, Lukas Klein*, Cédric Vincent-Cuaz, Eeshaan Jain, Yexiang Cheng, Johann Wenckstern, Phil F. Cheng, Petros Liakopoulos, Olivier Michielin, Martina Haberecker, Andreas Wicki, Pascal Frossard, Charlotte Bunne
 
@@ -39,7 +39,7 @@ pip install -e .
 
 ## Inference
 ### Datasets
-VirTues-M2 training and evaluation datasets will be made public in spora. You can follow the download instructions on the spora [project page](https://spora.epfl.ch) and use the notebooks spora enabled notebooks. This is the **recommended** way of using VirTues-M2. If you do not want to download a spora dataset or do not want to convert your dataset into the spora[data] format, you can refer to the notebooks non-spora notebooks.
+VirTues-M2 training and evaluation datasets will be made public in spora. You can follow the download instructions on the spora [project page](https://spora.epfl.ch) and use the notebooks spora enabled notebooks. This is the **recommended** way of using VirTues-M2. If you do not want to download a spora dataset or do not want to convert your dataset into the [spora[data]](https://go.epfl.ch/spora-data) format, you can refer to the notebooks non-spora notebooks.
 
 ### Model weights
 The model weights for the VirTues-M2 backbone, segmentation and virtual staining head are all available on [HuggingFace](https://huggingface.co/bunnelab/virtues-m2) and currently reside in the `v2` branch. The model backbone can be instantiated as follows:
