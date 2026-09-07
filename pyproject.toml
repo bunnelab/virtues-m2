@@ -29,9 +29,9 @@ dependencies = [
   "opencv-python-headless",
   "numba",
   "scipy",
+  "hf_xet",
   "instanseg-torch",
   "spora_io@git+https://github.com/bunnelab/spora-io.git",
-  "hf_xet",
 ]
 
 [tool.setuptools.packages.find]
