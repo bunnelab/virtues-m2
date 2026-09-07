@@ -1,8 +1,6 @@
 # VirTues-M2: A multimodal foundation model for tissue proteomics and morpholoy in cancer
-This repository contains inference examples on how to run VirTues-M2.
-Full training code will be released soon.
 
-*[[Pre-print]](https://www.nature.com/articles/s41586-026-10884-y) | [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference)*
+*[[Preprint]]() | [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference)*
 
 <img src=".github/VirTues-M2_logo.png" alt="VirTues-M2 Logo" width="40%" align="right" />
 
