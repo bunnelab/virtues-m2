@@ -5,3 +5,4 @@ virtues-m2/
 __pycache__/
 
 local/
+.vscode/
