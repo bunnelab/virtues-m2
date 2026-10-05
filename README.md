@@ -1,17 +1,15 @@
-# VirTues-M2: A multimodal foundation model for tissue proteomics and morpholoy in cancer
+<p align="center">
+  <img src=".github/VirTues-M2_logo.png" alt="VirTues-M2 Logo" width="50%" />
+</p>
 
-*[[Preprint]]() | [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference)*
+# A multimodal foundation model for tissue proteomics and morphology in cancer
 
-<img src=".github/VirTues-M2_logo.png" alt="VirTues-M2 Logo" width="50%" align="right" />
+*[[Preprint]]() | 🤗 [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference)*
 
-*Authors:* Benedikt von Querfurth*, Lukas Klein*, Cédric Vincent-Cuaz, Eeshaan Jain, Yexiang Cheng, Johann Wenckstern, Phil F. Cheng, Petros Liakopoulos, Olivier Michielin, Martina Haberecker, Andreas Wicki, Pascal Frossard, Charlotte Bunne
+VirTues-M2 is a foundation model for tissue biology that jointly learns from routine H&E histopathology and multiplex spatial proteomics within a single architecture. It follows an early-fusion design: pixel-aligned images are embedded by modality-specific tokenizers (an RGB tokenizer for H&E and a multiplex tokenizer for spatial proteomics) and processed by a shared vision transformer backbone. In the multiplex tokenizer, each channel is combined with a protein foundation model embedding of its marker identity. This lets VirTues-M2 handle arbitrary and varying marker panels and stay robust to missing modalities, incomplete pairing and imperfect alignment. VirTues-M2 is pretrained on the largest open-source multiplex spatial proteomics collection with partially paired H&E, covering 5,849 patients, 37 studies and 17,275 multiplex tissues acquired with PhenoCycler (CODEX), Orion, IMC and MIBI. The resulting joint representation can be used in tasks such as treatment response, tissue phenotyping, panoptic cell segmentation, virtual staining, biomarker discovery and adaptive marker panel selection.
 
-*Abstract:* Cancer diagnosis, prognosis, and treatment decisions increasingly rely on integrating tissue morphology with specific molecular readouts of the tumor and its microenvironment. H&E histopathology provides scalable morphology, whereas multiplex spatial proteomics quantifies dozens of proteins _in situ_ with spatial context, but remains selectively deployed, often with different marker panels across cohorts. This creates a translational bottleneck: most patients lack high-depth molecular profiling, and existing models rarely integrate morphology and spatial molecular data in a single framework. We present VirTues-M2, a multimodal foundation model that jointly learns from H&E and spatial proteomics using a novel vision transformer-based architecture. By encoding marker identity during pretraining, VirTues-M2 is robust to missing modalities, imperfect pairing or registration, and variable marker panels, enabling unified inference for tissue phenotyping, panoptic cell segmentation, virtual staining, annotation-free biomarker discovery, and reinforcement learning-based adaptive marker panel selection to reduce assay burden. <br>
-As a concrete demonstration of translational utility, in a newly collected cohort of 1,053 treatment-naive non-small-cell lung cancer (NSCLC) patients with paired spatial proteomics and H&E, VirTues-M2 discovers high-risk and low-risk tissue signatures that stratify overall survival in both the discovery cohort and an independent validation cohort, outperforming current state-of-the-art stratification schemes, enabled by VirTues-M2’s ability to jointly analyze both modalities within a single model. 
-
-<br>
-<p align='center'>
-<img src=".github/VirTues-M2-graphical_abstract.png" alt="VirTues Graphical Abstract" width="100%" />
+<p align="center">
+  <img src=".github/VirTues-M2_overview.png" alt="VirTues-M2 Overview" width="100%" />
 </p>
 
 ## Installation
