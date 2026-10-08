@@ -4,7 +4,7 @@
 
 # A multimodal foundation model for tissue proteomics and morphology in cancer
 
-*[[Preprint]]() | 🤗 [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference)*
+*🤗 [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference)*
 
 VirTues-M2 is a foundation model for tissue biology that jointly learns from routine H&E histopathology and multiplex spatial proteomics within a single architecture. It follows an early-fusion design: pixel-aligned images are embedded by modality-specific tokenizers (an RGB tokenizer for H&E and a multiplex tokenizer for spatial proteomics) and processed by a shared vision transformer backbone. In the multiplex tokenizer, each channel is combined with a protein foundation model embedding of its marker identity. This lets VirTues-M2 handle arbitrary and varying marker panels and stay robust to missing modalities, incomplete pairing and imperfect alignment. VirTues-M2 is pretrained on the largest open-source multiplex spatial proteomics collection with partially paired H&E, covering 5,849 patients, 37 studies and 17,275 multiplex tissues acquired with PhenoCycler (CODEX), Orion, IMC and MIBI. The resulting joint representation can be used in tasks such as treatment response, tissue phenotyping, panoptic cell segmentation, virtual staining, biomarker discovery and adaptive marker panel selection.
 
@@ -32,12 +32,7 @@ Afterwards, install all requirements:
 pip install -e .
 ```
 
-## Training
-*Pretraining, virtual staining and cell phenotyping & segmentation code will be added soon!*
-
 ## Inference
-### Datasets
-VirTues-M2 training and evaluation datasets will be made public in spora. You can follow the download instructions on the spora [project page](https://spora.epfl.ch) and use the notebooks spora enabled notebooks. This is the **recommended** way of using VirTues-M2. If you do not want to download a spora dataset or do not want to convert your dataset into the [spora[data]](https://go.epfl.ch/spora-data) format, you can refer to the notebooks non-spora notebooks.
 
 ### Model weights
 The model weights for the VirTues-M2 backbone, segmentation and virtual staining head are all available on [HuggingFace](https://huggingface.co/bunnelab/virtues-m2) and currently reside in the `v2` branch. The model backbone can be instantiated as follows:
@@ -49,8 +44,8 @@ model = VirTuesM2_HF.from_pretrained("bunnelab/virtues-m2", marker_embedding_dir
 ### Tutorial Notebooks
 
 We provide three inference notebooks in the `notebooks` folder to show how to embed multi- and uni-modal images with VirTues-M2 and potential downstream tasks that leverage the frozen VirTues-M2 encoding abilities.
-In the notebook [`1_inference_PCAs.ipynb`](notebooks/1_inference_PCAs.ipynb), simple PCAs are shown, whereas in [`2_cell_segmentation_spora.ipynb`](notebooks/2_cell_segmentation_spora.ipynb) we demonstrate panoptic cell segmentation based on VirTues-M2 for joint cell phenotyping and cell instance segmentation in a single forward pass.
-The notebook [`3_virtual_staining_spora.ipynb`](notebooks/3_virtual_staining_spora.ipynb) demonstrates how to perform virtual staining on a subset of 11 markers. Support for more markers will come soon!
+In the notebook [`1_inference_PCAs.ipynb`](notebooks/1_inference_PCAs.ipynb), simple PCAs are shown, whereas in [`2_cell_segmentation.ipynb`](notebooks/2_cell_segmentation.ipynb) we demonstrate panoptic cell segmentation based on VirTues-M2 for joint cell phenotyping and cell instance segmentation in a single forward pass.
+The notebook [`3_virtual_staining.ipynb`](notebooks/3_virtual_staining.ipynb) demonstrates how to perform virtual staining on a subset of 11 markers.
 
 ### Models
 | Model Name | Training Data |  License of Model Weights | HuggingFace Branch | Segmentation Head | Virtual Staining Head |
