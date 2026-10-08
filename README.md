@@ -34,6 +34,10 @@ pip install -e .
 
 ## Inference
 
+### Marker embeddings
+
+To encode the antibody markers of the spatial proteomics images, we use the ESM-2 protein language model to encode the corresponding proteins. Instructions for generating these embeddings can be found in the VirTues GitHub repository, [here](https://github.com/bunnelab/virtues#marker-embeddings).
+
 ### Model weights
 The model weights for the VirTues-M2 backbone, segmentation and virtual staining head are all available on [HuggingFace](https://huggingface.co/bunnelab/virtues-m2) and currently reside in the `v2` branch. The model backbone can be instantiated as follows:
 ```python
