@@ -4,7 +4,7 @@
 
 # A multimodal foundation model for tissue proteomics and morphology in cancer
 
-*🤗 [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference)*
+*🤗 [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference) | [[Data]](https://spora.epfl.ch/docs/)*
 
 VirTues-M2 is a foundation model for tissue biology that jointly learns from routine H&E histopathology and multiplex spatial proteomics within a single architecture. It follows an early-fusion design: pixel-aligned images are embedded by modality-specific tokenizers (an RGB tokenizer for H&E and a multiplex tokenizer for spatial proteomics) and processed by a shared vision transformer backbone. In the multiplex tokenizer, each channel is combined with a protein foundation model embedding of its marker identity. This lets VirTues-M2 handle arbitrary and varying marker panels and stay robust to missing modalities, incomplete pairing and imperfect alignment. VirTues-M2 is pretrained on the largest open-source multiplex spatial proteomics collection with partially paired H&E, covering 5,849 patients, 37 studies and 17,275 multiplex tissues acquired with PhenoCycler (CODEX), Orion, IMC and MIBI. The resulting joint representation can be used in tasks such as treatment response, tissue phenotyping, panoptic cell segmentation, virtual staining, biomarker discovery and adaptive marker panel selection.
 
@@ -51,10 +51,12 @@ We provide three inference notebooks in the `notebooks` folder to show how to em
 In the notebook [`1_inference_PCAs.ipynb`](notebooks/1_inference_PCAs.ipynb), simple PCAs are shown, whereas in [`2_cell_segmentation.ipynb`](notebooks/2_cell_segmentation.ipynb) we demonstrate panoptic cell segmentation based on VirTues-M2 for joint cell phenotyping and cell instance segmentation in a single forward pass.
 The notebook [`3_virtual_staining.ipynb`](notebooks/3_virtual_staining.ipynb) demonstrates how to perform virtual staining on a subset of 11 markers.
 
+If you want to apply VirTues-M2 on the harmonized datasets provided within the `spora` spatial proteomics dataset collection, we provide additional notebooks for [cell segmentation](notebooks/2_cell_segmentation_spora.ipynb) and [virtual staining](notebooks/3_virtual_staining_spora.ipynb) showcasing the integration of spora into VirTues-M2 based processing pipelines.
+
 ### Models
 | Model Name | Training Data |  License of Model Weights | HuggingFace Branch | Segmentation Head | Virtual Staining Head |
 | --- | --- | --- | --- | --- | --- |
-| `virtues-m2-sp37` | 37 partially multimodal spatial proteomics datasets | CC BY-NC 4.0 | `v2` |  ✔ | ✔ |
+| `virtues-m2-sp37` | 37 partially multimodal spatial proteomics datasets (see [spora](https://spora.epfl.ch/docs/)) | CC BY-NC 4.0 | `v2` |  ✔ | ✔ |
 
 ## License and Terms of Use
 
