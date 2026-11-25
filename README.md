@@ -4,7 +4,7 @@
 
 # A multimodal foundation model for tissue proteomics and morphology in cancer
 
-*🤗 [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Cite]](#reference) | [[Data]](https://spora.epfl.ch/docs/)*
+*[[Preprint]](https://arxiv.org/abs/2611.31451) | [[Model Weights]](https://huggingface.co/bunnelab/virtues-m2) | [[Pretraining Data]](https://spora.epfl.ch/docs/)*
 
 VirTues-M2 is a foundation model for tissue biology that jointly learns from routine H&E histopathology and multiplex spatial proteomics within a single architecture. It follows an early-fusion design: pixel-aligned images are embedded by modality-specific tokenizers (an RGB tokenizer for H&E and a multiplex tokenizer for spatial proteomics) and processed by a shared vision transformer backbone. In the multiplex tokenizer, each channel is combined with a protein foundation model embedding of its marker identity. This lets VirTues-M2 handle arbitrary and varying marker panels and stay robust to missing modalities, incomplete pairing and imperfect alignment. VirTues-M2 is pretrained on the largest open-source multiplex spatial proteomics collection with partially paired H&E, covering 5,849 patients, 37 studies and 17,275 multiplex tissues acquired with PhenoCycler (CODEX), Orion, IMC and MIBI. The resulting joint representation can be used in tasks such as treatment response, tissue phenotyping, panoptic cell segmentation, virtual staining, biomarker discovery and adaptive marker panel selection.
 
@@ -66,14 +66,14 @@ Laboratory of Artificial Intelligence in Molecular Medicine, 2026
 This repository and related code are released under the MIT License. See `LICENSE.md` for details.
 
 ## Reference
-If you find our work useful in your research or if you use parts of this code please consider citing our [paper]():
+If you find our work useful in your research or if you use parts of this code please consider citing our [preprint](https://arxiv.org/abs/2611.31451):
 
 ```
-@article{...,
-  title = {},
-  author = {},
-  journal = {},
-  publisher = {},
-  year = {}
+@article{querfurth2026multimodal,
+  title={{A multimodal foundation model for tissue proteomics and morphology in cancer}},
+  author={von Querfurth, Benedikt and Klein, Lukas and Vincent-Cuaz, Cédric and Jain, Eeshaan and Cheng, Yexiang and Wenckstern, Johann and Cheng, Phil F. and Liakopoulos, Petros and Michielin, Olivier and Haberecker, Martina and Wicki, Andreas and Frossard, Pascal and Bunne, Charlotte},
+  year={2026},
+  journal={arXiv preprint arXiv:2611.31451},
+  url={https://arxiv.org/abs/2611.31451}
 }
 ```
